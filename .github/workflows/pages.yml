@@ -1,0 +1,40 @@
+name: Publish property reports
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - name: Prepare restricted browser map connection
+        env:
+          MAPS_KEY: ${{ secrets.GOOGLE_MAPS_BROWSER_KEY }}
+          MAP_ID: ${{ vars.GOOGLE_MAP_ID }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          key, map_id = os.environ['MAPS_KEY'], os.environ['MAP_ID']
+          if not key or not map_id:
+              raise SystemExit('Google Maps connection is not configured')
+          config = json.dumps({'apiKey': key, 'mapId': map_id})
+          Path('site/map-config.js').write_text('window.connectReportGoogleMap(' + config + ');\n')
+          PY
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - uses: actions/deploy-pages@v4
+        id: deployment
